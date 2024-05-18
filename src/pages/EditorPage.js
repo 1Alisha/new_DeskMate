@@ -13,7 +13,7 @@ import {
 
 const EditorPage = () => {
     const socketRef = useRef(null);
-    //const codeRef = useRef(null);
+    const codeRef = useRef(null);
     const location = useLocation();
     const { roomId } = useParams();
     const reactNavigator = useNavigate();
@@ -37,8 +37,7 @@ const EditorPage = () => {
                 roomId,
                 username: location.state?.username,
             })
-            socketRef.current.on(
-                ACTIONS.JOINED,({clients,username,socketId})=>{
+            socketRef.current.on(ACTIONS.JOINED,({clients,username,socketId})=>{
                 if(username!==location.state?.username){
                     toast.success(`${username} joined the room.`);
                     console.log(`${username} joined`);
@@ -59,11 +58,12 @@ const EditorPage = () => {
         };
         init();
         return () => {
+            if (socketRef.current) {
                 socketRef.current.disconnect();
                 socketRef.current.off(ACTIONS.JOINED);
                 socketRef.current.off(ACTIONS.DISCONNECTED);
             }
-        
+        };
     }, [roomId, location.state?.username, reactNavigator]);
 
     
@@ -101,7 +101,13 @@ const EditorPage = () => {
                 </button>
             </div>
             <div className='editorWrap'>
-                <Editor/>
+            <Editor
+                    socketRef={socketRef}
+                    roomId={roomId}
+                    onCodeChange={(code) => {
+                        codeRef.current = code;
+                    }}
+                />
             </div>
         </div>
     )

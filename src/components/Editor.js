@@ -1,110 +1,45 @@
-import React, { useState, useRef, useEffect } from 'react';
-import toast from 'react-hot-toast';
+import React, { useEffect, useRef } from 'react';
+import Codemirror from 'codemirror';
+import 'codemirror/mode/javascript/javascript';
+import 'codemirror/theme/dracula.css';
+import 'codemirror/addon/edit/closebrackets';
+import 'codemirror/addon/edit/closetag';
+import 'codemirror/lib/codemirror.css';
 import ACTIONS from '../Actions';
-import Client from '../components/Client';
-import Editor from '../components/Editor';
-import { initSocket } from '../socket';
-import {
-    useLocation,
-    useNavigate,
-    Navigate,
-    useParams,
-} from 'react-router-dom';
 
-const EditorPage = () => {
-    const socketRef = useRef(null);
-    const codeRef = useRef(null);
-    const location = useLocation();
-    const { roomId } = useParams();
-    const reactNavigator = useNavigate();
-    const [clients, setClients] = useState([
+const Editor = ({ socketRef, roomId, onCodeChange }) => {
+    const editorRef = useRef(null);
 
-    ]);
-    //const [clients, setClients] = useState([]);
+    useEffect(() => {
+        async function init() {
+            const cmInstance = Codemirror.fromTextArea(document.getElementById('real'), {
+                mode: { name: 'javascript', json: true },
+                theme: 'dracula',
+                autoCloseTags: true,
+                autoCloseBrackets: true,
+                lineNumbers: true,
+            });
 
-    useEffect(()=>{
-        const init = async()=>{
-            socketRef.current = await initSocket();
-            socketRef.current.on('connect_error', (err) => handleErrors(err));
-            socketRef.current.on('connect_failed', (err) => handleErrors(err));
-            function handleErrors(e) {
-                console.log('socket error', e);
-                toast.error('Socket connection failed, try again later.');
-                reactNavigator('/');
-            }
+            editorRef.current = cmInstance;
 
-            socketRef.current.emit(ACTIONS.JOIN,{
-                roomId,
-                username: location.state?.username,
-            })
-            socketRef.current.on(ACTIONS.JOINED,({clients,username,socketId})=>{
-                if(username!==location.state?.username){
-                    toast.success(`${username} joined the room.`);
-                    console.log(`${username} joined`);
-                }
-                setClients(clients)
-            })
-            socketRef.current.on(
-                ACTIONS.DISCONNECTED,
-                ({ socketId, username }) => {
-                    toast.success(`${username} left the room.`);
-                    setClients((prev) => {
-                        return prev.filter(
-                            (client) => client.socketId !== socketId
-                        );
+            cmInstance.on('change', (instance, changes) => {
+                const { origin } = changes;
+                const code = instance.getValue();
+                onCodeChange(code);
+                if (origin !== 'setValue') {
+                    socketRef.current.emit(ACTIONS.CODE_CHANGE, {
+                        roomId,
+                        code,
                     });
                 }
-            );
-        };
+            });
+        }
         init();
-        return () => {
-            if (socketRef.current) {
-                socketRef.current.disconnect();
-                socketRef.current.off(ACTIONS.JOINED);
-                socketRef.current.off(ACTIONS.DISCONNECTED);
-            }
-        };
-    }, [roomId, location.state?.username, reactNavigator]);
+    }, [roomId, onCodeChange, socketRef]);
 
-    
-    if (!location.state) {
-        return <Navigate to="/" />;
-    }
-
-    <Navigate/>
     return (
-        <div className="mainWrap">
-            <div className="aside">
-                <div className="asideInner">
-                    <div className="logo">
-                        <img
-                            className="logoImage"
-                            src="/w.png"
-                            alt="logo"
-                        />
-                    </div>
-                    <h3>Connected</h3>
-                    <div className="clientsList">
-                        {clients.map((client) => (
-                            <Client
-                                key={client.socketId}
-                                username={client.username} // Ensure client.username is a string
-                            />
-                        ))}
-                    </div>
-                </div>
-                <button className="btn copyBtn" >
-                    Copy ROOM ID
-                </button>
-                <button className="btn leaveBtn" >
-                    Leave
-                </button>
-            </div>
-            <div className='editorWrap'>
-                <Editor/>
-            </div>
-        </div>
-    )
-}
+        <textarea id='real'></textarea>
+    );
+};
 
-export default EditorPage
+export default Editor;
