@@ -4,104 +4,83 @@ import ACTIONS from '../Actions';
 import Client from '../components/Client';
 import Editor from '../components/Editor';
 import { initSocket } from '../socket';
-import {
-    useLocation,
-    useNavigate,
-    Navigate,
-    useParams,
-} from 'react-router-dom';
+import { useLocation, useNavigate, useParams, Navigate } from 'react-router-dom';
 
-const EditorPage = () => {
-    const socketRef = useRef(null);
+const EditorPage = ({socketRef}) => {
+
     const codeRef = useRef(null);
     const location = useLocation();
     const { roomId } = useParams();
     const reactNavigator = useNavigate();
-    const [clients, setClients] = useState([
+    const [clients, setClients] = useState([]);
 
-    ]);
-    //const [clients, setClients] = useState([]);
-
-    useEffect(()=>{
-        const init = async()=>{
+    useEffect(() => {
+        const init = async () => {
             socketRef.current = await initSocket();
-            socketRef.current.on('connect_error', (err) => handleErrors(err));
-            socketRef.current.on('connect_failed', (err) => handleErrors(err));
-            function handleErrors(e) {
+
+            const handleErrors = (e) => {
                 console.log('socket error', e);
                 toast.error('Socket connection failed, try again later.');
                 reactNavigator('/');
-            }
+            };
 
-            socketRef.current.emit(ACTIONS.JOIN,{
+            socketRef.current.on('connect_error', handleErrors);
+            socketRef.current.on('connect_failed', handleErrors);
+
+            socketRef.current.emit(ACTIONS.JOIN, {
                 roomId,
                 username: location.state?.username,
-            })
-            socketRef.current.on(ACTIONS.JOINED,({clients,username,socketId})=>{
-                if(username!==location.state?.username){
+            });
+
+            socketRef.current.on(ACTIONS.JOINED, ({ clients, username, socketId }) => {
+                if (username !== location.state?.username) {
                     toast.success(`${username} joined the room.`);
-                    console.log(`${username} joined`);
                 }
-                setClients(clients)
-            })
-            socketRef.current.on(
-                ACTIONS.DISCONNECTED,
-                ({ socketId, username }) => {
-                    toast.success(`${username} left the room.`);
-                    setClients((prev) => {
-                        return prev.filter(
-                            (client) => client.socketId !== socketId
-                        );
-                    });
+                setClients(clients);
+            });
+
+            socketRef.current.on(ACTIONS.DISCONNECTED, ({ socketId, username }) => {
+                toast.success(`${username} left the room.`);
+                setClients((prev) => prev.filter((client) => client.socketId !== socketId));
+            });
+
+            // Clean up the event listeners on unmount
+            return () => {
+                if (socketRef.current) {
+                    socketRef.current.disconnect();
+                    socketRef.current.off(ACTIONS.JOINED);
+                    socketRef.current.off(ACTIONS.DISCONNECTED);
                 }
-            );
+            };
         };
+
         init();
-        return () => {
-            if (socketRef.current) {
-                socketRef.current.disconnect();
-                socketRef.current.off(ACTIONS.JOINED);
-                socketRef.current.off(ACTIONS.DISCONNECTED);
-            }
-        };
+
     }, [roomId, location.state?.username, reactNavigator]);
 
-    
     if (!location.state) {
         return <Navigate to="/" />;
     }
 
-    <Navigate/>
     return (
         <div className="mainWrap">
             <div className="aside">
                 <div className="asideInner">
                     <div className="logo">
-                        <img
-                            className="logoImage"
-                            src="/w.png"
-                            alt="logo"
-                        />
+                        <img className="logoImage" src="/w.png" alt="logo" />
                     </div>
                     <h3>Connected</h3>
                     <div className="clientsList">
                         {clients.map((client) => (
-                            <Client
-                                key={client.socketId}
-                                username={client.username} // Ensure client.username is a string
-                            />
+                            <Client key={client.socketId} username={client.username} />
                         ))}
                     </div>
                 </div>
-                <button className="btn copyBtn" >
-                    Copy ROOM ID
-                </button>
-                <button className="btn leaveBtn" >
-                    Leave
-                </button>
+                <button className="btn copyBtn">Copy ROOM ID</button>
+                <button className="btn leaveBtn">Leave</button>
             </div>
-            <div className='editorWrap'>
-            <Editor
+            <div className="editorWrap">
+                <Editor
                     socketRef={socketRef}
                     roomId={roomId}
                     onCodeChange={(code) => {
@@ -110,7 +89,7 @@ const EditorPage = () => {
                 />
             </div>
         </div>
-    )
-}
+    );
+};
 
-export default EditorPage
+export default EditorPage;
